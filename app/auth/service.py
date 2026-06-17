@@ -3,6 +3,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.logger import logger
 from app.auth.exceptions import (
     DepartmentNotFound,
     EmailTaken,
@@ -72,11 +73,14 @@ async def login(session: AsyncSession, username: str, password: str) -> dict:
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(password, user.hashed_password):
+        logger.info("Failed login attempt for '%s'", username)
         raise InvalidCredentials()
 
     if not user.is_active:
+        logger.info("Login attempt for inactive user '%s'", username)
         raise UserInactive()
 
+    logger.info("User '%s' logged in successfully", user.username)
     return {
         "access_token": create_access_token(user),
         "refresh_token": create_refresh_token(user.id, user.updated_at.timestamp()),
