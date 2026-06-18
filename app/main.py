@@ -55,7 +55,13 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
     )
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    response_description="Сервис работает, БД доступна",
+    responses={
+        503: {"description": "БД недоступна"},
+    },
+)
 async def health() -> JSONResponse:
     try:
         async with AsyncSessionLocal() as session:
