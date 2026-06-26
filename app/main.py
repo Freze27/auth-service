@@ -1,10 +1,58 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.auth.exceptions import AuthError
+from app.auth.router import router as auth_router
 from app.database import AsyncSessionLocal
+from app.logger import logger
+from app.users.router import router as users_router
 
 app = FastAPI(title="Auth Service")
+
+app.include_router(auth_router)
+app.include_router(users_router)
+
+
+@app.exception_handler(AuthError)
+async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
+    logger.warning("%s %s -> %d %s", request.method, request.url.path, exc.status_code, exc.message)
+    return JSONResponse(
+        {"error": exc.error, "message": exc.message, "details": exc.details},
+        status_code=exc.status_code,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    details = {}
+    for error in exc.errors():
+        field = ".".join(str(loc) for loc in error["loc"] if loc != "body")
+        details[field] = error["msg"]
+    logger.warning("%s %s -> 422 %s", request.method, request.url.path, details)
+    return JSONResponse(
+        {"error": "validation_error", "message": "Invalid request data", "details": details},
+        status_code=422,
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    logger.warning("%s %s -> %d %s", request.method, request.url.path, exc.status_code, exc.detail)
+    return JSONResponse(
+        {"error": "http_error", "message": exc.detail, "details": {}},
+        status_code=exc.status_code,
+    )
+
+
+@app.exception_handler(Exception)
+async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("%s %s -> 500 unhandled exception", request.method, request.url.path)
+    return JSONResponse(
+        {"error": "internal_error", "message": "Internal server error", "details": {}},
+        status_code=500,
+    )
 
 
 @app.get("/health")
