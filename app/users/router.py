@@ -11,7 +11,14 @@ router = APIRouter(prefix="/users", tags=["users"])
 bearer = HTTPBearer(auto_error=False)
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    response_description="Данные текущего пользователя",
+    responses={
+        401: {"description": "Токен отсутствует, невалиден, просрочен или передан refresh token вместо access"},
+    },
+)
 async def get_me(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     session: AsyncSession = Depends(get_db),
